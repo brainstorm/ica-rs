@@ -3,3 +3,4 @@
 members = [
 	"gds",
 ]
+exclude = [ "examples/list_gds_volumes" ]
