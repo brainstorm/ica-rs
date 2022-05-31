@@ -5,6 +5,8 @@ authors = ["Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2018"
 
 [dependencies]
+dirs = { version = "4.0" }
+serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
