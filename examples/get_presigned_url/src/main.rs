@@ -38,7 +38,6 @@ async fn main() {
     let file_ids = gds_urls_to_file_ids(&conf, vec!(volume_ids[0].as_ref().unwrap().id.as_ref().unwrap().clone()), gds_urls).await;
     for file in &file_ids.unwrap().items.unwrap() {
         get_presigned_url(&conf, file.id.as_ref()).await;
-        println!("{:#?}", file.presigned_url);
     }
 }
 
