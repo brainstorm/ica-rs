@@ -8,7 +8,7 @@ This crate will use upstream OpenAPI Codegen:
 
 ```shell
 $ brew install openapi-generator
-$ openapi-generator generate -i openapi/gds.json -g rust -o src/gds
+$ openapi-generator generate -i openapi/v1/gds.json -g rust -o gds
 ```
 
 Note: Currently it sets the version wrongly on `Cargo.toml`, needs to be fixed upstream or locally.
