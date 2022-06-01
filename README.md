@@ -1,6 +1,6 @@
 # ICA Rust client
 
-WIP, only GDS v1 supported, highly alpha/experimental code
+Beta OpenAPI generated ICA APIs.
 
 # Re-generate client stubs
 
@@ -11,7 +11,7 @@ $ brew install openapi-generator
 $ openapi-generator generate -i openapi/v1/gds.json -g rust -o gds
 ```
 
-Note: Currently it sets the version wrongly on `Cargo.toml`, needs to be fixed upstream or locally.
+Note: Currently `openapi-generator` sets the version wrongly on `Cargo.toml`, needs to be fixed manually until next OpenAPI releases that fix it.
 
 # Examples
 
