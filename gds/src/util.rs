@@ -2,13 +2,25 @@ use dirs::home_dir;
 use std::fs::File;
 use url::{ParseError, Url};
 
+use thiserror::Error;
+
 use crate::apis::configuration::ApiKey;
 use crate::apis::configuration::Configuration;
+use crate::apis::files_api::GetFileError;
 use crate::apis::files_api::{get_file, list_files, ListFilesError};
 use crate::apis::volumes_api::{get_volume, GetVolumeError};
-use crate::apis::Error;
 use crate::models::FileListResponse;
 use crate::models::VolumeResponse;
+
+#[derive(Error, Debug)]
+pub enum GDSError {
+    #[error("The returned presigned URL is invalid")]
+    InvalidUrl(#[from] ParseError),
+    #[error("GDS GetFile Error")]
+    GetFileError(#[from] crate::apis::Error<GetFileError>),
+    #[error("GDS GetVolume Error")]
+    GetVolumeError(#[from] crate::apis::Error<GetVolumeError>),
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IcaConfig {
@@ -38,7 +50,7 @@ pub async fn setup_conf() -> Configuration {
 pub async fn gds_volume_to_volume_id(
     conf: &Configuration,
     volume: &str,
-) -> Result<VolumeResponse, Error<GetVolumeError>> {
+) -> Result<VolumeResponse, crate::apis::Error<GetVolumeError>> {
     get_volume(&conf, volume, None, None, None).await
 }
 
@@ -61,7 +73,7 @@ pub async fn gds_urls_to_file_ids(
     conf: &Configuration,
     volume_id: Vec<String>,
     gds_urls: Vec<String>,
-) -> Result<FileListResponse, Error<ListFilesError>> {
+) -> Result<FileListResponse, crate::apis::Error<ListFilesError>> {
     list_files(
         &conf,
         Some(volume_id),
@@ -81,10 +93,9 @@ pub async fn gds_urls_to_file_ids(
     .await
 }
 
-pub async fn get_presigned_url(conf: &Configuration, file_id: Option<&String>) -> String {
-    get_file(&conf, &file_id.unwrap(), None, None, None, None, None)
-        .await
-        .unwrap()
-        .presigned_url
-        .unwrap()
+pub async fn get_presigned_url(conf: &Configuration, file_id: Option<&String>) -> Result<Url, GDSError> {
+    let url = get_file(&conf, &file_id.unwrap(), None, None, None, None, None)
+        .await?
+        .presigned_url;
+    Url::parse(url.unwrap().as_str()).map_err(GDSError::InvalidUrl)
 }
