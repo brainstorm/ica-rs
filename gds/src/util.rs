@@ -16,6 +16,8 @@ use crate::models::VolumeResponse;
 pub enum GDSError {
     #[error("The returned presigned URL is invalid")]
     InvalidUrl(#[from] ParseError),
+    #[error("The returned file ID is invalid")]
+    ListFilesError(#[from] crate::apis::Error<ListFilesError>),
     #[error("GDS GetFile Error")]
     GetFileError(#[from] crate::apis::Error<GetFileError>),
     #[error("GDS GetVolume Error")]
@@ -50,8 +52,8 @@ pub async fn setup_conf() -> Configuration {
 pub async fn gds_volume_to_volume_id(
     conf: &Configuration,
     volume: &str,
-) -> Result<VolumeResponse, crate::apis::Error<GetVolumeError>> {
-    get_volume(&conf, volume, None, None, None).await
+) -> Result<VolumeResponse, GDSError> {
+    Ok(get_volume(&conf, volume, None, None, None).await?)
 }
 
 pub async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, ParseError> {
@@ -73,8 +75,8 @@ pub async fn gds_urls_to_file_ids(
     conf: &Configuration,
     volume_id: Vec<String>,
     gds_urls: Vec<String>,
-) -> Result<FileListResponse, crate::apis::Error<ListFilesError>> {
-    list_files(
+) -> Result<FileListResponse, GDSError> {
+    Ok(list_files(
         &conf,
         Some(volume_id),
         None,
@@ -90,7 +92,7 @@ pub async fn gds_urls_to_file_ids(
         None,
         None,
     )
-    .await
+    .await?)
 }
 
 pub async fn get_presigned_url(conf: &Configuration, file_id: Option<&String>) -> Result<Url, GDSError> {
