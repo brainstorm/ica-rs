@@ -15,9 +15,9 @@ use crate::models::VolumeResponse;
 #[derive(Error, Debug)]
 pub enum GDSError {
     #[error("The returned presigned URL is invalid")]
-    InvalidUrl(#[from] ParseError),
+    ParseError(#[from] ParseError),
     #[error("The returned file ID is invalid")]
-    ListFilesError(#[from] crate::apis::Error<ListFilesError>),
+    FilesListResponseError(#[from] crate::apis::Error<ListFilesError>),
     #[error("GDS GetFile Error")]
     GetFileError(#[from] crate::apis::Error<GetFileError>),
     #[error("GDS GetVolume Error")]
@@ -56,7 +56,7 @@ pub async fn gds_volume_to_volume_id(
     Ok(get_volume(&conf, volume, None, None, None).await?)
 }
 
-pub async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, ParseError> {
+pub async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, GDSError> {
     let volume = Url::parse(url)?.host_str().unwrap().to_string();
     let path = Url::parse(url)?.path().to_string();
     Ok(GdsUrl { volume, path })
@@ -95,9 +95,16 @@ pub async fn gds_urls_to_file_ids(
     .await?)
 }
 
-pub async fn get_presigned_url(conf: &Configuration, file_id: Option<&String>) -> Result<Url, GDSError> {
-    let url = get_file(&conf, &file_id.unwrap(), None, None, None, None, None)
-        .await?
-        .presigned_url;
-    Url::parse(url.unwrap().as_str()).map_err(GDSError::InvalidUrl)
+/// Returns a (AWS S3) presigned URL from gds:// URL directly, without many of intermediate steps visible to the user.
+/// TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yetx 
+pub async fn presigned_url(gds: Url) -> Result<Url, GDSError> {
+    let config = setup_conf().await;
+    let input_gds_url = gds_url_to_volume_and_path(gds.as_str().as_ref()).await;
+    let volume_ids = vec!(gds_volume_to_volume_id(&config, &input_gds_url.as_ref().unwrap().volume).await);
+    let gds_urls = vec!(input_gds_url.unwrap().path);
+
+    // TODO: Disambiguate which file_ids to get
+    let first_id_in_volume = volume_ids[0].as_ref().unwrap().id.as_ref().unwrap().clone();
+    let file_ids = gds_urls_to_file_ids(&config, vec!(first_id_in_volume), gds_urls).await?;
+    Ok(Url::parse(file_ids.items.unwrap()[0].presigned_url.as_ref().unwrap().as_str())?)
 }
