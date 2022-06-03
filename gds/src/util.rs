@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::apis::configuration::ApiKey;
 use crate::apis::configuration::Configuration;
 use crate::apis::files_api::GetFileError;
-use crate::apis::files_api::{get_file, list_files, ListFilesError};
+use crate::apis::files_api::{list_files, ListFilesError};
 use crate::apis::volumes_api::{get_volume, GetVolumeError};
 use crate::models::FileListResponse;
 use crate::models::VolumeResponse;
@@ -97,9 +97,9 @@ pub async fn gds_urls_to_file_ids(
 
 /// Returns a (AWS S3) presigned URL from gds:// URL directly, without many of intermediate steps visible to the user.
 /// TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yetx 
-pub async fn presigned_url(gds: Url) -> Result<Url, GDSError> {
+pub async fn presigned_url(gds: &str) -> Result<Url, GDSError> {
     let config = setup_conf().await;
-    let input_gds_url = gds_url_to_volume_and_path(gds.as_str().as_ref()).await;
+    let input_gds_url = gds_url_to_volume_and_path(gds.as_ref()).await;
     let volume_ids = vec!(gds_volume_to_volume_id(&config, &input_gds_url.as_ref().unwrap().volume).await);
     let gds_urls = vec!(input_gds_url.unwrap().path);
 
