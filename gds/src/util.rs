@@ -42,6 +42,7 @@ pub struct GdsUrl {
     pub path: String,
 }
 
+/// Sets up the GDS endpoints and keys to provide access to the GDS API.
 pub async fn setup_conf() -> Result<Configuration, GDSError> {
     let mut conf = Configuration::default();
     let key = read_access_token().await?;
@@ -53,6 +54,7 @@ pub async fn setup_conf() -> Result<Configuration, GDSError> {
     Ok(conf)
 }
 
+/// Given a volume string, returns the volume.id
 pub async fn gds_volume_to_volume_id(
     conf: &Configuration,
     volume: &str,
@@ -60,12 +62,14 @@ pub async fn gds_volume_to_volume_id(
     Ok(get_volume(&conf, volume, None, None, None).await?)
 }
 
+/// Separates volume and path from a GDS URL. gds://volume/<path...>
 pub async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, GDSError> {
     let volume = Url::parse(url)?.host_str().unwrap().to_string();
     let path = Url::parse(url)?.path().to_string();
     Ok(GdsUrl { volume, path })
 }
 
+/// Read the access token from the ICA session YAML file
 pub async fn read_access_token() -> Result<String, GDSError> {
     if (std::option_env!("GDS_ACCESS_TOKEN")).is_some() {
         return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
@@ -96,6 +100,7 @@ pub async fn read_access_token() -> Result<String, GDSError> {
     }
 }
 
+/// Returns a list of files in the given GDS path .
 pub async fn gds_urls_to_file_ids(
     conf: &Configuration,
     volume_id: Vec<String>,
@@ -121,8 +126,6 @@ pub async fn gds_urls_to_file_ids(
 }
 
 /// Returns a (AWS S3) presigned URL from gds:// URL directly, without many of intermediate steps visible to the user.
-/// TODO: Implement byte ranges.
-/// TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yet
 pub async fn presigned_url(gds: &str) -> Result<Url, GDSError> {
     let config = setup_conf().await?;
     let input_gds_url = gds_url_to_volume_and_path(gds.as_ref()).await;
@@ -131,6 +134,7 @@ pub async fn presigned_url(gds: &str) -> Result<Url, GDSError> {
     let gds_urls = vec![input_gds_url.unwrap().path];
 
     // TODO: Disambiguate which file_ids to get
+    // TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yet
     let first_id_in_volume = volume_ids[0].as_ref().unwrap().id.as_ref().unwrap().clone();
     let file_ids = gds_urls_to_file_ids(&config, vec![first_id_in_volume], gds_urls).await?;
     Ok(Url::parse(
