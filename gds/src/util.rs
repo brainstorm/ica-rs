@@ -22,6 +22,10 @@ pub enum GDSError {
     GetFileError(#[from] crate::apis::Error<GetFileError>),
     #[error("GDS GetVolume Error")]
     GetVolumeError(#[from] crate::apis::Error<GetVolumeError>),
+    #[error("GDS session YAML file is invalid")]
+    InvalidSessionYamlError(#[from] serde_yaml::Error),
+    #[error("GDS session YAML file cannot be opened")]
+    SessionYamlError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,15 +42,15 @@ pub struct GdsUrl {
     pub path: String,
 }
 
-pub async fn setup_conf() -> Configuration {
+pub async fn setup_conf() -> Result<Configuration, GDSError> {
     let mut conf = Configuration::default();
-    let key = read_access_token().await;
+    let key = read_access_token().await?;
     let apikey = ApiKey {
         prefix: Some("Bearer".to_string()),
         key,
     };
     conf.api_key = Some(apikey);
-    conf
+    Ok(conf)
 }
 
 pub async fn gds_volume_to_volume_id(
@@ -62,13 +66,34 @@ pub async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, GDSError> {
     Ok(GdsUrl { volume, path })
 }
 
-pub async fn read_access_token() -> String {
-    // TODO: env_vars
-    let f =
-        File::open(home_dir().unwrap().to_str().unwrap().to_owned() + "/.ica/.session.aps2.yaml")
-            .expect("Cannot open file");
-    let ica: IcaConfig = serde_yaml::from_reader(f).expect("Could not read values.");
-    ica.access_token
+pub async fn read_access_token() -> Result<String, GDSError> {
+    if (std::option_env!("GDS_ACCESS_TOKEN")).is_some() {
+        return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
+    } else {
+        // In which region are we? Infer from AWS side.
+        let gds_region = match std::option_env!("AWS_DEFAULT_REGION").or(Some("AWS_REGION")) {
+            Some("ap-southeast-2") => "aps2".to_string(),
+            Some("ap-northeast-1") => "apn1".to_string(),
+            Some("us-east-1") => "use1".to_string(),
+            Some("us-west-1") => "usw1".to_string(),
+            Some("us-west-2") => "usw2".to_string(),
+            Some("eu-west-1") => "euw1".to_string(),
+            Some("eu-central-1") => "euc1".to_string(),
+            Some("ap-southeast-1") => "aps1".to_string(),
+            Some("ap-northeast-2") => "apn2".to_string(),
+            Some("eu-west-2") => "euw2".to_string(),
+            Some("sa-east-1") => "sae1".to_string(),
+            Some("us-east-2") => "use2".to_string(),
+            None => todo!(),
+            Some(&_) => todo!(),
+        };
+        let f = File::open(
+            home_dir().unwrap().to_str().unwrap().to_owned()
+                + format!("/.ica/.session.{}.yaml", gds_region).as_str(),
+        )?;
+        let access_token: Result<String, serde_yaml::Error> = serde_yaml::from_reader(f);
+        return Ok(access_token?);
+    }
 }
 
 pub async fn gds_urls_to_file_ids(
@@ -96,15 +121,23 @@ pub async fn gds_urls_to_file_ids(
 }
 
 /// Returns a (AWS S3) presigned URL from gds:// URL directly, without many of intermediate steps visible to the user.
-/// TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yetx 
+/// TODO: Implement byte ranges.
+/// TODO: This means that only a GDS path involving a file should be passed, no paths with several file_ids are supported... yet
 pub async fn presigned_url(gds: &str) -> Result<Url, GDSError> {
-    let config = setup_conf().await;
+    let config = setup_conf().await?;
     let input_gds_url = gds_url_to_volume_and_path(gds.as_ref()).await;
-    let volume_ids = vec!(gds_volume_to_volume_id(&config, &input_gds_url.as_ref().unwrap().volume).await);
-    let gds_urls = vec!(input_gds_url.unwrap().path);
+    let volume_ids =
+        vec![gds_volume_to_volume_id(&config, &input_gds_url.as_ref().unwrap().volume).await];
+    let gds_urls = vec![input_gds_url.unwrap().path];
 
     // TODO: Disambiguate which file_ids to get
     let first_id_in_volume = volume_ids[0].as_ref().unwrap().id.as_ref().unwrap().clone();
-    let file_ids = gds_urls_to_file_ids(&config, vec!(first_id_in_volume), gds_urls).await?;
-    Ok(Url::parse(file_ids.items.unwrap()[0].presigned_url.as_ref().unwrap().as_str())?)
+    let file_ids = gds_urls_to_file_ids(&config, vec![first_id_in_volume], gds_urls).await?;
+    Ok(Url::parse(
+        file_ids.items.unwrap()[0]
+            .presigned_url
+            .as_ref()
+            .unwrap()
+            .as_str(),
+    )?)
 }
