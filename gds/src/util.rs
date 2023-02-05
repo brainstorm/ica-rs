@@ -1,5 +1,6 @@
 use dirs::home_dir;
 use std::fs::File;
+use glob::glob;
 use url::{ParseError, Url};
 
 use thiserror::Error;
@@ -74,29 +75,22 @@ pub async fn read_access_token() -> Result<String, GDSError> {
     if (std::option_env!("GDS_ACCESS_TOKEN")).is_some() {
         return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
     } else {
-        // In which region are we? Infer from AWS side.
-        let gds_region = match std::option_env!("AWS_DEFAULT_REGION").or(Some("AWS_REGION")) {
-            Some("ap-southeast-2") => "aps2".to_string(),
-            Some("ap-northeast-1") => "apn1".to_string(),
-            Some("us-east-1") => "use1".to_string(),
-            Some("us-west-1") => "usw1".to_string(),
-            Some("us-west-2") => "usw2".to_string(),
-            Some("eu-west-1") => "euw1".to_string(),
-            Some("eu-central-1") => "euc1".to_string(),
-            Some("ap-southeast-1") => "aps1".to_string(),
-            Some("ap-northeast-2") => "apn2".to_string(),
-            Some("eu-west-2") => "euw2".to_string(),
-            Some("sa-east-1") => "sae1".to_string(),
-            Some("us-east-2") => "use2".to_string(),
-            None => todo!(),
-            Some(&_) => todo!(),
-        };
-        let f = File::open(
-            home_dir().unwrap().to_str().unwrap().to_owned()
-                + format!("/.ica/.session.{}.yaml", gds_region).as_str(),
-        )?;
-        let access_token: Result<String, serde_yaml::Error> = serde_yaml::from_reader(f);
-        return Ok(access_token?);
+        // Check on the filesystem for available .session.*.yaml file(s).
+        let homedir = home_dir().unwrap().to_str().unwrap().to_owned(); // seriously?
+        let session_pattern = "/.ica/.session.*.yaml";
+        match glob(session_pattern) {
+            Ok(paths) => {
+                assert!(paths.count() == 1);
+                let path = paths.filter_map(Result::ok).next();
+                File::open(path.unwrap())
+                    .map(serde_yaml::from_reader)
+                    .map_err(GDSError::SessionYamlError("foo"))?
+
+                //let yaml: Result<String, serde_yaml::Error> = serde_yaml::from_reader(f);
+                //yaml.map_err(|| GDSError::SessionYamlError("foo"))?;
+            },
+            GDSError => print!("No session file found in ~/.ica/"),
+        }
     }
 }
 
