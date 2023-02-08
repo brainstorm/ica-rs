@@ -1,5 +1,8 @@
-use glob::glob_with;
+use std::fs::File;
+
+use glob::glob;
 use url::{ParseError, Url};
+use dirs::home_dir;
 
 use thiserror::Error;
 
@@ -25,7 +28,9 @@ pub enum GDSError {
     InvalidSessionYamlError(#[from] serde_yaml::Error),
     #[error("GDS session YAML file cannot be opened")]
     SessionYamlError(#[from] std::io::Error),
-    #[error("GDS session YAML file cannot be found")]
+    #[error("GDS session YAML file cannot be found (globerror)")]
+    GlobError(#[from] glob::GlobError),
+    #[error("GDS session YAML file cannot be found (patternerror)")]
     PatternError(#[from] glob::PatternError),
     // #[error("GDS Unauthorised, renew your session via 'ica login'")]
     // ResponseError(#[from] crate::apis::Error<ResponseError>),
@@ -77,21 +82,16 @@ pub async fn read_access_token() -> Result<String, GDSError> {
     if (std::option_env!("GDS_ACCESS_TOKEN")).is_some() {
         return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
     } else {
-        let options = glob::MatchOptions {
-            case_sensitive: true,
-            require_literal_leading_dot: true,
-            require_literal_separator: true,
-        };
-
         // Check on the filesystem for available .session.aps2.yaml file(s).
-        while let Ok(entry) = glob_with("~/.ica/.session.*.yaml", options) {
-            dbg!(entry);
-            // match entry {
-            //     Ok(path) => println!("{:?}", path.display()),
-            //     Err(e) => println!("{:?}", e)
-            // };
-        }
-        return Ok("foo".to_string());
+        let pattern: String = format!("{}/.ica/.session.*.yaml", home_dir().unwrap().to_string_lossy());
+        dbg!(&pattern);
+        let paths: Vec<_> = glob(&pattern)?.collect();
+        // FIXME: Scenario of multi-region ICA?
+        let first_path = paths[0].as_ref().unwrap();
+        let yaml_path = first_path.as_path().to_string_lossy().into_owned();
+        let yaml_file = File::open(yaml_path)?;
+        let ica: IcaConfig = serde_yaml::from_reader(yaml_file)?;
+        Ok(ica.access_token)
     }
 }
 
