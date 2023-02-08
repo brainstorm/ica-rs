@@ -1,6 +1,4 @@
-use dirs::home_dir;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
 use url::{Url, ParseError};
 
 use ica_gds::apis::Error;
@@ -10,6 +8,7 @@ use ica_gds::apis::volumes_api::{get_volume, GetVolumeError};
 use ica_gds::apis::files_api::{list_files, get_file, ListFilesError};
 use ica_gds::models::FileListResponse;
 use ica_gds::models::VolumeResponse;
+use ica_gds::util::{GDSError, read_access_token};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IcaConfig {
@@ -41,14 +40,14 @@ async fn main() {
     }
 }
 
-async fn setup_conf() -> Configuration {
+async fn setup_conf() -> Result<Configuration, GDSError> {
     let mut conf = Configuration::default();
-    let key = read_access_token().await;
+    let key = read_access_token().await?;
     let apikey = ApiKey {
         prefix: Some("Bearer".to_string()),
         key,
     };
-    conf.api_key = Some(apikey);
+    conf.api_key = apikey?;
     conf
 }
 
@@ -63,14 +62,14 @@ async fn gds_url_to_volume_and_path(url: &str) -> Result<GdsUrl, ParseError> {
     
 }
 
-async fn read_access_token() -> String {
-    // TODO: env_vars
-    let f =
-        File::open(home_dir().unwrap().to_str().unwrap().to_owned() + "/.ica/.session.aps2.yaml")
-            .expect("Cannot open file");
-    let ica: IcaConfig = serde_yaml::from_reader(f).expect("Could not read values.");
-    ica.access_token
-}
+// async fn read_access_token() -> String {
+//     // TODO: env_vars
+//     let f =
+//         File::open(home_dir().unwrap().to_str().unwrap().to_owned() + "/.ica/.session.aps2.yaml")
+//             .expect("Cannot open file");
+//     let ica: IcaConfig = serde_yaml::from_reader(f).expect("Could not read values.");
+//     ica.access_token
+// }
 
 async fn gds_urls_to_file_ids(conf: &Configuration, volume_id: Vec<String>, gds_urls: Vec<String>) -> Result<FileListResponse, Error<ListFilesError>> {
     list_files(&conf, Some(volume_id), None, Some(gds_urls), None, None, None, None, None, None, None, None, None, None).await

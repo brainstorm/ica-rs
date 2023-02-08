@@ -1,6 +1,4 @@
-use dirs::home_dir;
-use std::fs::File;
-use glob::glob;
+use glob::glob_with;
 use url::{ParseError, Url};
 
 use thiserror::Error;
@@ -27,6 +25,10 @@ pub enum GDSError {
     InvalidSessionYamlError(#[from] serde_yaml::Error),
     #[error("GDS session YAML file cannot be opened")]
     SessionYamlError(#[from] std::io::Error),
+    #[error("GDS session YAML file cannot be found")]
+    PatternError(#[from] glob::PatternError),
+    // #[error("GDS Unauthorised, renew your session via 'ica login'")]
+    // ResponseError(#[from] crate::apis::Error<ResponseError>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,22 +77,21 @@ pub async fn read_access_token() -> Result<String, GDSError> {
     if (std::option_env!("GDS_ACCESS_TOKEN")).is_some() {
         return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
     } else {
-        // Check on the filesystem for available .session.*.yaml file(s).
-        let homedir = home_dir().unwrap().to_str().unwrap().to_owned(); // seriously?
-        let session_pattern = "/.ica/.session.*.yaml";
-        match glob(session_pattern) {
-            Ok(paths) => {
-                assert!(paths.count() == 1);
-                let path = paths.filter_map(Result::ok).next();
-                File::open(path.unwrap())
-                    .map(serde_yaml::from_reader)
-                    .map_err(GDSError::SessionYamlError("foo"))?
+        let options = glob::MatchOptions {
+            case_sensitive: true,
+            require_literal_leading_dot: true,
+            require_literal_separator: true,
+        };
 
-                //let yaml: Result<String, serde_yaml::Error> = serde_yaml::from_reader(f);
-                //yaml.map_err(|| GDSError::SessionYamlError("foo"))?;
-            },
-            GDSError => print!("No session file found in ~/.ica/"),
+        // Check on the filesystem for available .session.aps2.yaml file(s).
+        while let Ok(entry) = glob_with("~/.ica/.session.*.yaml", options) {
+            dbg!(entry);
+            // match entry {
+            //     Ok(path) => println!("{:?}", path.display()),
+            //     Err(e) => println!("{:?}", e)
+            // };
         }
+        return Ok("foo".to_string());
     }
 }
 
