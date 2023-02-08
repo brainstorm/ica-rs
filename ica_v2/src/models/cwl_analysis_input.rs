@@ -51,3 +51,9 @@ impl Default for ObjectType {
         Self::Structured
     }
 }
+
+impl Default for CwlAnalysisInput {
+    fn default() -> CwlAnalysisInput {
+        Self::CwlAnalysisJsonInput { input_json: String::from(""), data_ids: Some(vec![]), mounts: Some(vec![]) }
+    }
+}
