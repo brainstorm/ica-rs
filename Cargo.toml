@@ -1,11 +1,11 @@
 [workspace]
 
 members = [
-	"gds",
-	"ens",
-	"tes",
-	"wes",
-	"console",
+	"ica_v1/gds",
+	"ica_v1/ens",
+	"ica_v1/tes",
+	"ica_v1/wes",
+	"ica_v1/console",
 	"ica_v2"
 ]
-exclude = [ "examples/list_gds_volumes", "examples/get_presigned_url" ]
+exclude = [ "ica_v1/examples/list_gds_volumes", "ica_v1/examples/get_presigned_url" ]
