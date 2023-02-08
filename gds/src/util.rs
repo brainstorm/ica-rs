@@ -1,8 +1,8 @@
 use std::fs::File;
 
+use dirs::home_dir;
 use glob::glob;
 use url::{ParseError, Url};
-use dirs::home_dir;
 
 use thiserror::Error;
 
@@ -83,7 +83,10 @@ pub async fn read_access_token() -> Result<String, GDSError> {
         return Ok(std::option_env!("GDS_ACCESS_TOKEN").unwrap().to_string());
     } else {
         // Check on the filesystem for available .session.aps2.yaml file(s).
-        let pattern: String = format!("{}/.ica/.session.*.yaml", home_dir().unwrap().to_string_lossy());
+        let pattern: String = format!(
+            "{}/.ica/.session.*.yaml",
+            home_dir().unwrap().to_string_lossy()
+        );
         dbg!(&pattern);
         let paths: Vec<_> = glob(&pattern)?.collect();
         // FIXME: Scenario of multi-region ICA?
